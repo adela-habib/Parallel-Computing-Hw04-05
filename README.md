@@ -2,4 +2,4 @@
 Genevieve Grivas and Adela Habib
 
 4/6/2018
-Gen: added our names
+Gen: added (all) our names!
