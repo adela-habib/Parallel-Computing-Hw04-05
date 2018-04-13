@@ -29,6 +29,7 @@
 #define DEAD  0
 
 #define u_size 1024 //world size 1024x1024
+#define num_ticks 128 //128 ticks
 
 /***************************************************************************/
 /* Global Vars *************************************************************/
@@ -108,19 +109,26 @@ int main(int argc, char *argv[])
 //Randomly initialize universe
     for (int i=0; i<rows_per_rank; i++)
     {
-	for (int j=0; j<usize; j++)
+	for (int j=0; j < usize; j++)
 	{
-		my_row[i][j] = GenVal(mpi_myrank*rows_per_rank+i);
 		if (GenVal(mpi_myrank*rows_per_rank+i) > threshold)
 		{
 			my_row[i][j] = ALIVE;
 		}
+		else
+		{
+			my_row[i][j] = DEAD;
+		}
 	}
     }
 	
+//Create Pthreads and play the game
+    for( i = 0; i < num_ticks; i++)
+    {
 	
-	
-	
+    }
+
+MPI_Barrier();	
 	
 //End time of program
     if (mpi_myrank == 0)
