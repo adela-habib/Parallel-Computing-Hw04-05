@@ -43,12 +43,12 @@ int ierr;
 int *sendbuff, *recvbuff;
 //input arguments
 int num_pthreads; //number of pthreads
-int threshold; //threshold value
+double threshold; //threshold value
 //Run Time
 double start_time, end_time; //beginning and end time of program
 //Program Variables
 int rows_per_rank; //number of rows per rank
-int *my_rows; //allocated number of rows per rank
+int **my_rows; //allocated number of rows per rank
 
 /***************************************************************************/
 /* Function Decs ***********************************************************/
@@ -97,8 +97,30 @@ int main(int argc, char *argv[])
 //determine number of rows for each rank
     rows_per_rank = u_size/mpi_commsize; //number of rows per rank
 	
-//allocate space for rows on each rank
-    my_rows = (int *)calloc(rows_per_rank*sizeof(int));
+//allocate space for rows and columns on each rank
+    my_rows = (int **)calloc(rows_per_rank, sizeof(int*));
+	
+   for (int i=0; i<rows_per_rank; i++)
+   {
+	my_rows[i] = (int *)calloc(usize, sizeof(int));
+   }
+	
+//Randomly initialize universe
+    for (int i=0; i<rows_per_rank; i++)
+    {
+	for (int j=0; j<usize; j++)
+	{
+		my_row[i][j] = GenVal(mpi_myrank*rows_per_rank+i);
+		if (GenVal(mpi_myrank*rows_per_rank+i) > threshold)
+		{
+			my_row[i][j] = ALIVE;
+		}
+	}
+    }
+	
+	
+	
+	
 	
 //End time of program
     if (mpi_myrank == 0)
