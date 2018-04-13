@@ -28,6 +28,8 @@
 #define ALIVE 1
 #define DEAD  0
 
+#define u_size 1024 //world size 1024x1024
+
 /***************************************************************************/
 /* Global Vars *************************************************************/
 /***************************************************************************/
@@ -42,6 +44,11 @@ int *sendbuff, *recvbuff;
 //input arguments
 int num_pthreads; //number of pthreads
 int threshold; //threshold value
+//Run Time
+double start_time, end_time; //beginning and end time of program
+//Program Variables
+int rows_per_rank; //number of rows per rank
+int *my_rows; //allocated number of rows per rank
 
 /***************************************************************************/
 /* Function Decs ***********************************************************/
@@ -80,7 +87,28 @@ int main(int argc, char *argv[])
 //Get number of pthreads and threshold value
     num_pthread = argv[1]; //number of pthreads
     threshold = argv[2];
+	
+//Start time of program
+    if (mpi_myrank == 0)
+    {
+    	start_time = MPI_Wtime();
+    }	
+	
+//determine number of rows for each rank
+    rows_per_rank = u_size/mpi_commsize; //number of rows per rank
+	
+//allocate space for rows on each rank
+    my_rows = (int *)calloc(rows_per_rank*sizeof(int));
+	
+//End time of program
+    if (mpi_myrank == 0)
+    {
+     	end_time = MPI_Wtime();
+    }
 
+//Free allocated memory
+    free(my_rows);
+	
 // END -Perform a barrier and then leave MPI
     MPI_Barrier( MPI_COMM_WORLD );
     MPI_Finalize();
