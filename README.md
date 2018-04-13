@@ -6,4 +6,5 @@ Gen: added (all) our names!
 
 4/13/2018
 Gen:  added global variables
-      added two input arguments: number of pthreads, threshold value (at chander's suggestion - email)
+      ...and other stuff
+      not sure what to say :D
