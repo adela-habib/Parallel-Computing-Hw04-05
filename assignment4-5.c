@@ -32,8 +32,16 @@
 /* Global Vars *************************************************************/
 /***************************************************************************/
 
-// You define these
-
+int mpi_myrank; //rank id
+int mpi_commsize; //number of total ranks
+//MPI Send and Recv - not sure if we need
+MPI_Status status; 
+MPI_Request send_request, recv_request;
+int ierr;
+int *sendbuff, *recvbuff;
+//input arguments
+int num_pthreads; //number of pthreads
+int threshold; //threshold value
 
 /***************************************************************************/
 /* Function Decs ***********************************************************/
@@ -68,7 +76,10 @@ int main(int argc, char *argv[])
     MPI_Barrier( MPI_COMM_WORLD );
     
 // Insert your code
-    
+
+//Get number of pthreads and threshold value
+    num_pthread = argv[1]; //number of pthreads
+    threshold = argv[2];
 
 // END -Perform a barrier and then leave MPI
     MPI_Barrier( MPI_COMM_WORLD );
