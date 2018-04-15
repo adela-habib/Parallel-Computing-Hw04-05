@@ -57,6 +57,19 @@ int **my_rows; //allocated number of rows per rank
 
 // You define these
 
+//Funtion ran in each pthread
+void *run_simulation(void *)
+{
+
+    /*for (ticks t = 0 ; t < number_of_ticks ; t++)
+    {
+        (i.) Exchange row data with different MPI ranks for the ghost rows (the rows shared between MPI ranks). You exchange this (ghost) row data from thread 0 of each MPI rank. Be careful here on how to use mutexes so as to avoid deadlocks. Also note that this row exchange uses alive/dead status data from the previous tick.
+        (ii.) Read all the statuses of the neighbors depending upon the number of live/dead neighbors for the current tick and set the appropiate live/dead count.
+        (iii.) Finally, update the cell status depending on the status of your neighbors based on the rules of Game-Of-Life for that current tick.
+    }*/
+    
+}
+
 
 /***************************************************************************/
 /* Function: Main **********************************************************/
@@ -109,26 +122,34 @@ int main(int argc, char *argv[])
 //Randomly initialize universe
     for (int i=0; i<rows_per_rank; i++)
     {
-	for (int j=0; j < usize; j++)
-	{
-		if (GenVal(mpi_myrank*rows_per_rank+i) > threshold)
-		{
-			my_row[i][j] = ALIVE;
-		}
-		else
-		{
-			my_row[i][j] = DEAD;
-		}
-	}
+    	for (int j=0; j < usize; j++)
+    	{
+    		if (GenVal(mpi_myrank*rows_per_rank+i) > threshold)
+    		{
+    			my_row[i][j] = ALIVE;
+    		}
+    		else
+    		{
+    			my_row[i][j] = DEAD;
+    		}
+    	}
     }
 	
-//Create Pthreads and play the game
-    for( i = 0; i < num_ticks; i++)
+//Create Pthreads
+    pthread_t 
+    for(int i=0; i < num_pthreads; i++){
+
+        //create pthreads
+
+    }
+
+//play the game
+    for(int i = 0; i < num_ticks; i++)
     {
 	
     }
 
-MPI_Barrier();	
+    MPI_Barrier();	
 	
 //End time of program
     if (mpi_myrank == 0)
@@ -137,6 +158,9 @@ MPI_Barrier();
     }
 
 //Free allocated memory
+    for(int i=0; i < rows_per_rank, i++){
+        free(my_rows[i]);
+    }
     free(my_rows);
 	
 // END -Perform a barrier and then leave MPI
