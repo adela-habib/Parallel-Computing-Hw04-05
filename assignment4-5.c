@@ -130,7 +130,7 @@ int main(int argc, char *argv[])
     pthread_attr_init (&attr);
   
     pthread_id = 0;
-    //1 or more pthreads
+//1 or more pthreads
     if (num_pthreads > 0)
     {
       rows_per_thread = rows_per_rank/num_pthreads; //number of rows per thread
@@ -150,9 +150,15 @@ int main(int argc, char *argv[])
         &attr, run_simulation, (void *) &pthread_id);
         
         pthread_id++;  
-      }        
+      }
+
+      //join threads to make sure all pthreads in rank are done
+      for(int i = 0; i < num_pthreads; i++){
+              pthread_join(pthread pthreads[i]);
+      }
     }
-    else //0 pthreads
+//No pthreads
+    else
     {
       rows_per_thread = rows_per_rank;
       
@@ -163,12 +169,7 @@ int main(int argc, char *argv[])
       *run_simulation(0);
       
     }
-  
-    //join threads to make sure all pthreads in rank are done
-    for(int i = 0; i < num_pthreads; i++){
-            pthread_join(pthread pthreads[i]);
-    }
-    
+      
     //Synchronize ranks
     MPI_Barrier();  
     
@@ -235,31 +236,48 @@ int** sim_tick(int starting_row)
       {
         num_alive_neighbors = my_rows[curr_row][left] + my_rows[curr_row][right] + my_rows[up][curr_col] + my_rows[down][curr_col] +
           my_rows[up][left] + my_rows[up][right] + my_rows[down][left] + my_rows[down][right];
-            }
+      }
 
 //(ii.) Read all the statuses of the neighbors depending upon the number of live/dead neighbors for the current tick and set the appropiate live/dead count.
-        //1- Any live cell with fewer than two live neighbors dies, as if caused by under-population.
-      if (num_alive_neighbors < 2)
+      //ADDITIONAL RANDOMNESS
+      //if random value is greater than threshold - play the game
+      if (GenVal(mpi_myrank*curr_row+curr_col) > threshold)
       {
-        temp_cells[curr_col] = DEAD; 
-      }
-      //2- Any live cell with two or three live neighbors lives on to the next generation
-      //4- Any dead cell with exactly three live neighbors becomes a live cell, as if by reproduction
-      else if(num_alive_neighbors < 4)
-      {
-        if((num_alive_neighbors == 3) & (my_rows[curr_row][curr_col]==DEAD))
+          //1- Any live cell with fewer than two live neighbors dies, as if caused by under-population.
+        if (num_alive_neighbors < 2)
         {
-          temp_cells[curr_col] = ALIVE; // by reproduction
+          temp_cells[curr_col] = DEAD; 
+        }
+        //2- Any live cell with two or three live neighbors lives on to the next generation
+        //4- Any dead cell with exactly three live neighbors becomes a live cell, as if by reproduction
+        else if(num_alive_neighbors < 4)
+        {
+          if((num_alive_neighbors == 3) & (my_rows[curr_row][curr_col]==DEAD))
+          {
+            temp_cells[curr_col] = ALIVE; // by reproduction
+          }
+          else
+          {
+            temp_cells[curr_col] = my_rows[curr_row][curr_col]; //stays the same
+          }
+              }
+        //3- Any live cell with more than three live neighbors dies, as if by over-population
+        else if(num_alive_neighbors > 3)
+        {
+          temp_cells[curr_col] = DEAD;
+        }
+      }
+      //else, randomly select alive or dead
+      else
+      {
+        if (GenVal(mpi_myrank*curr_row+curr_col) % 2)
+        { 
+          temp_cells[curr_col] = ALIVE; //if random number if even, it is alive
         }
         else
         {
-          temp_cells[curr_col] = my_rows[curr_row][curr_col]; //stays the same
+          temp_cells[curr_col] = DEAD; //random number is odd, it is dead
         }
-            }
-      //3- Any live cell with more than three live neighbors dies, as if by over-population
-      else if(num_alive_neighbors > 3)
-      {
-        temp_cells[curr_col] = DEAD;
       }
     } 
     
@@ -284,11 +302,12 @@ void *run_simulation(void *void_pthread_id_ptr)
     {                              
         //(i.) Exchange row data with different MPI ranks for the ghost rows (the rows shared between MPI ranks). You exchange this (ghost) row data from thread 0 of each MPI rank. 
         //Be careful here on how to use mutexes so as to avoid deadlocks. Also note that this row exchange uses alive/dead status data from the previous tick.
-        if (pthread_id ==0)
+        if (pthread_id == 0)
         {
           pthread_id0();
         }
-        else if (num_pthreads == 0)
+        //If there are 0 or 1 pthreads
+        if ((num_pthreads == 0) | (num_pthreads == 1)
         {
             int** temp_table = sim_tick(0);
           
@@ -307,6 +326,7 @@ void *run_simulation(void *void_pthread_id_ptr)
             }
             free(temp_table);
         }
+        //multiple pthreads
         else
         {
             //(ii.) Read all the statuses of the neighbors depending upon the number of live/dead neighbors for the current tick and set the appropiate live/dead count.        
@@ -331,7 +351,7 @@ void *run_simulation(void *void_pthread_id_ptr)
         }
       
         //Use pthread barrier to make sure each thread finishes a tick before moving on
-        if(num_pthreads > 0)
+        if(num_pthreads > 0) 
         {
           pthread_barrier_wait(&pbarrier);
 
@@ -401,6 +421,3 @@ void pthread_id0()
       MPI_Wait(&recv_request2, &status);
     }
 }
-
-
-
