@@ -8,3 +8,6 @@ Gen: added (all) our names!
 Gen:  added global variables
       ...and other stuff
       not sure what to say :D
+4/15/2018
+All:  added run_simulation(), sim_tick(), and pthread_id0()
+      joint effort & team work <3
