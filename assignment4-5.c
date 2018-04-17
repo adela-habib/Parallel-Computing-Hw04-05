@@ -156,8 +156,7 @@ int main(int argc, char *argv[])
       { 
          
         //create pthreads
-        pthread_create(&p_threads[i-1], 
-        &attr, run_simulation, (void *) &pthread_id);
+        pthread_create(&p_threads[i-1], &attr, run_simulation, (void *) &pthread_id);
 
         pthread_id++;  
         
@@ -228,8 +227,8 @@ int** sim_tick(int starting_row)
     {
       int num_alive_neighbors = 0; //keep count of live neighbors  
       //set direction
-      int left = (curr_col-1) % u_size;
-      int right = (curr_col + 1) % u_size;
+      int left = (curr_col-1) % u_size;  //wrapping included by mod arithmatic
+      int right = (curr_col + 1) % u_size; 
       int up = i+1;
       int down = i-1;
       
