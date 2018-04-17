@@ -88,8 +88,8 @@ int main(int argc, char *argv[])
 // Insert your code
 
 //Get number of pthreads and threshold value
-    num_pthreads = *argv[1]; //number of pthreads
-    threshold = *argv[2];
+    sscanf(argv[1], "%d", &num_pthreads); //number of pthreads
+    sscanf(argv[2], "%lf", &threshold); //threshold value
     
 //Start time of program
     if (mpi_myrank == 0)
@@ -99,6 +99,7 @@ int main(int argc, char *argv[])
     
 //determine number of rows for each rank and each thread
     rows_per_rank = u_size/mpi_commsize; //number of rows per rank
+    if (mpi_myrank == 0){ printf("\n rows_per_rank = %d\n", rows_per_rank); }
     
 //allocate space for rows and columns on each rank
     my_rows = (int **)calloc(rows_per_rank, sizeof(int*));
@@ -123,6 +124,8 @@ int main(int argc, char *argv[])
             }
         }
     }
+
+    if (mpi_myrank == 0){ printf("Done Making Universe.\n"); }
     
 //Create Pthreads
     pthread_t p_threads[num_pthreads-1];
@@ -135,7 +138,8 @@ int main(int argc, char *argv[])
 //1 or more pthreads
     if (num_pthreads > 0)
     {
-        rows_per_thread = rows_per_rank/num_pthreads; //number of rows per thread
+      rows_per_thread = rows_per_rank/num_pthreads; //number of rows per thread
+      if (mpi_myrank ==0){printf("rows_per_thread = %d\n", rows_per_thread); }
 
       //allocate memory for ghost rows
       top_ghost_row = (int *)calloc(u_size, sizeof(int));
@@ -145,7 +149,10 @@ int main(int argc, char *argv[])
       pthread_barrier_init(&pbarrier, NULL, num_pthreads);
       
       //Run the simulation on calling thread (pthread 0)
-      run_simulation(0);
+      int arg = 0;
+      run_simulation(&arg);
+
+      if (mpi_myrank ==0) { printf("Past run_simulation(0). \n"); }
 
       //pthreads 1 to num_pthreads run simulation function
       for(int i=1; i < num_pthreads; i++)
@@ -157,6 +164,8 @@ int main(int argc, char *argv[])
         pthread_id++;  
         
       }
+
+      if (mpi_myrank ==0){printf("Done Making Pthreads.\n"); }
 
       //join threads to make sure all pthreads in rank are done
       for(int i = 0; i < num_pthreads - 1; i++){
@@ -172,8 +181,9 @@ int main(int argc, char *argv[])
         //allocate memory for ghost rows
         top_ghost_row = (int *)calloc(u_size, sizeof(int));
         bottom_ghost_row = (int *)calloc(u_size, sizeof(int));
-          
-        run_simulation(0);      
+
+	int arg = 0;
+        run_simulation(&arg);     
     }
       
     //Synchronize ranks
@@ -308,10 +318,15 @@ void *run_simulation(void *void_pthread_id_ptr)
     {                              
         //(i.) Exchange row data with different MPI ranks for the ghost rows (the rows shared between MPI ranks). You exchange this (ghost) row data from thread 0 of each MPI rank. 
         //Be careful here on how to use mutexes so as to avoid deadlocks. Also note that this row exchange uses alive/dead status data from the previous tick.
-        if (pthread_id == 0)
+      if (mpi_myrank == 0){ printf("Reached before pthread_id0() function. \n\n"); }
+      
+      if (pthread_id == 0)
         {
             pthread_id0();
         }
+	
+	if (mpi_myrank ==0){printf("Finished pthread_id0() function.\n\n"); }
+	
         //If there are 0 or 1 pthreads
         if ( (num_pthreads == 0) | (num_pthreads == 1))
         {
@@ -339,6 +354,8 @@ void *run_simulation(void *void_pthread_id_ptr)
             int starting_row = pthread_id * rows_per_thread;
             int** temp_table = sim_tick(starting_row);
 
+	    if(mpi_myrank ==0){printf("Finished sim_tick.\n\n");}
+	    
             //(iii.) Finally, update the cell status
             for (int i=starting_row; i<rows_per_thread; i++)
             {
@@ -375,25 +392,35 @@ void pthread_id0()
         //receive bottom ghost row from last rank
         MPI_Irecv(&bottom_ghost_row, u_size, MPI_INT, mpi_myrank+1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request2);
 
+	if (mpi_myrank ==0){printf("\t pthread_id0 print1\n"); }
+	
         //MPI_ISEND
         //send top row to last rank
         MPI_Isend(&my_rows[0], u_size, MPI_INT, mpi_commsize-1, 1, MPI_COMM_WORLD, &send_request);
         MPI_Wait(&send_request, &status);
+
+	printf("my_rows[%d] = %d\n\n", rows_per_rank-1, my_rows[rows_per_rank-1][0]);
         //send last row to rank 1
         MPI_Isend(&my_rows[rows_per_rank-1], u_size, MPI_INT, mpi_myrank+1, 1, MPI_COMM_WORLD, &send_request);
         MPI_Wait(&send_request, &status);
 
         MPI_Wait(&recv_request, &status);
         MPI_Wait(&recv_request2, &status);
+
+	printf("I am Rank 0, finished print1.\n");
     }
     else if (mpi_myrank == mpi_commsize-1) //last rank
     {
+      printf("I am Rank %d - Inside Else if.\n", mpi_myrank);
+      
         //MPI_IRECV
         //receive top ghost row from previous rank
         MPI_Irecv(&top_ghost_row, u_size, MPI_INT, mpi_myrank-1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
         //receive bottom ghost row from first rank
         MPI_Irecv(&bottom_ghost_row, u_size, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request2);
 
+	printf("\t pthread_id0 print2\n"); 	
+	
         //MPI_ISEND
         //send top row to previous rank
         MPI_Isend(&my_rows[0], u_size, MPI_INT, mpi_myrank-1, 1, MPI_COMM_WORLD, &send_request);
@@ -407,12 +434,16 @@ void pthread_id0()
     }
     else //middle ranks
     {
+      printf("I am Rank %d - Inside Else.\n", mpi_myrank);
+      
         //MPI_IRECV
         //receive bottom ghost row from previous last rank
         MPI_Irecv(&bottom_ghost_row, u_size, MPI_INT, mpi_myrank-1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
         //receives top ghost row from next rank
         MPI_Irecv(&top_ghost_row, u_size, MPI_INT, mpi_myrank+1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
 
+	printf("\t pthread_id0 print3\n"); 
+	
         //MPI_ISEND
         //send top row to previous rank
         MPI_Isend(&my_rows[0], u_size, MPI_INT, mpi_myrank-1, 1, MPI_COMM_WORLD, &send_request);
@@ -425,3 +456,4 @@ void pthread_id0()
         MPI_Wait(&recv_request2, &status);
     }
 }
+
