@@ -131,7 +131,7 @@ int main(int argc, char *argv[])
     }
     
 //Create Pthreads
-    pthread_t p_threads[num_pthreads];
+    pthread_t p_threads[num_pthreads-1];
     pthread_attr_t attr;
     pthread_attr_init (&attr);
   
@@ -148,18 +148,23 @@ int main(int argc, char *argv[])
       //Create barrier to sync ticks in pthreads
       pthread_barrier_init(&pbarrier, NULL, num_pthreads);
       
-      //pthreads 0 to num_pthreads run program function
-      for(int i=0; i < num_pthreads; i++)
-      {      
+      //Run the simulation on calling thread (pthread 0)
+      run_simulation(0);
+
+      //pthreads 1 to num_pthreads run simulation function
+      for(int i=1; i < num_pthreads; i++)
+      { 
+         
         //create pthreads
-        pthread_create(&p_threads[num_pthreads], 
+        pthread_create(&p_threads[i-1], 
         &attr, run_simulation, (void *) &pthread_id);
-        
+
         pthread_id++;  
+        
       }
 
       //join threads to make sure all pthreads in rank are done
-      for(int i = 0; i < num_pthreads; i++){
+      for(int i = 0; i < num_pthreads - 1; i++){
               pthread_join(p_threads[i], NULL);
       }
     }
