@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
       for(int i=0; i < num_pthreads; i++)
       {      
         //create pthreads
-        pthread_create(&p_threads[num_pthreads], 
+        pthread_create(&p_threads[i], 
         &attr, run_simulation, (void *) &pthread_id);
         
         pthread_id++;  
