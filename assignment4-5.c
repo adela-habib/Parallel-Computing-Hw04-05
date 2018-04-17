@@ -57,7 +57,7 @@ pthread_barrier_t pbarrier;
 /***************************************************************************/
 
 void *run_simulation(void *); //runs the pthreads simulation
-void sim_tick(int starting_row); //simulates game for single time "tick" for given rows
+int** sim_tick(int starting_row); //simulates game for single time "tick" for given rows
 void pthread_id0(void); //function for pthread_id0
 
 /***************************************************************************/
@@ -86,10 +86,15 @@ int main(int argc, char *argv[])
     MPI_Barrier( MPI_COMM_WORLD );
     
 // Insert your code
+  
 
 //Get number of pthreads and threshold value
-    num_pthread = argv[1]; //number of pthreads
-    threshold = argv[2];
+    sscanf(argv[1], "%d", &num_pthreads);
+    //num_pthreads = argv[1]; //number of pthreads
+    
+    //Take in arg as double
+    sscanf(argv[2],"%lf",&threshold);
+    //threshold = argv[2];
     
 //Start time of program
     if (mpi_myrank == 0)
@@ -105,21 +110,22 @@ int main(int argc, char *argv[])
     
    for (int i=0; i<rows_per_rank; i++)
    {
-            my_rows[i] = (int *)calloc(usize, sizeof(int));
+            my_rows[i] = (int *)calloc(u_size, sizeof(int));
    }
     
 //Randomly initialize universe
     for (int i=0; i<rows_per_rank; i++)
     {
-        for (int j=0; j < usize; j++)
+        for (int j=0; j < u_size; j++)
         {
+            //TODO - check this is the right way to initialize
             if (GenVal(mpi_myrank*rows_per_rank+i) > threshold)
             {
-                my_row[i][j] = ALIVE;
+                my_rows[i][j] = ALIVE;
             }
             else
             {
-                my_row[i][j] = DEAD;
+                my_rows[i][j] = DEAD;
             }
         }
     }
@@ -136,13 +142,13 @@ int main(int argc, char *argv[])
       rows_per_thread = rows_per_rank/num_pthreads; //number of rows per thread
 
       //allocate memory for ghost rows
-      top_ghost_row = (int *)calloc(usize, sizeof(int));
-      bottom_ghost_row = (int *)calloc(usize, sizeof(int));
+      top_ghost_row = (int *)calloc(u_size, sizeof(int));
+      bottom_ghost_row = (int *)calloc(u_size, sizeof(int));
       
       //Create barrier to sync ticks in pthreads
-      pthread_barrier_init(&pbarrier, NULL, num_pthreads)
+      pthread_barrier_init(&pbarrier, NULL, num_pthreads);
       
-      //pthreads 1 to num_pthreads run program function
+      //pthreads 0 to num_pthreads run program function
       for(int i=0; i < num_pthreads; i++)
       {      
         //create pthreads
@@ -154,7 +160,7 @@ int main(int argc, char *argv[])
 
       //join threads to make sure all pthreads in rank are done
       for(int i = 0; i < num_pthreads; i++){
-              pthread_join(pthread pthreads[i]);
+              pthread_join(p_threads[i], NULL);
       }
     }
 //No pthreads
@@ -163,15 +169,16 @@ int main(int argc, char *argv[])
       rows_per_thread = rows_per_rank;
       
       //allocate memory for ghost rows
-      top_ghost_row = (int *)calloc(usize, sizeof(int));
-      bottom_ghost_row = (int *)calloc(usize, sizeof(int));
-        
-      *run_simulation(0);
+      top_ghost_row = (int *)calloc(u_size, sizeof(int));
+      bottom_ghost_row = (int *)calloc(u_size, sizeof(int));
+      
+      //TODO compiler does not like this
+      run_simulation(0);
       
     }
       
     //Synchronize ranks
-    MPI_Barrier();  
+    MPI_Barrier(MPI_COMM_WORLD);  
     
 //End time of program
     if (mpi_myrank == 0)
@@ -182,7 +189,7 @@ int main(int argc, char *argv[])
 //Free allocated memory
     free(top_ghost_row);
     free(bottom_ghost_row);
-    for(int i=0; i < rows_per_rank, i++)
+    for(int i=0; i < rows_per_rank; i++)
     {
         free(my_rows[i]);
     }
@@ -209,25 +216,25 @@ int** sim_tick(int starting_row)
   for(int i = 0; i < rows_per_thread; i++)
   {    
     //array to hold temp results
-    int * temp_cells = (int *)calloc(usize, sizeof(int));
+    int * temp_cells = (int *)calloc(u_size, sizeof(int));
     
     //for each column in a row
-    for(int curr_col = 0; curr_col < usize; curr_col++)
+    for(int curr_col = 0; curr_col < u_size; curr_col++)
     {
-      int num_alive_neighbor = 0; //keep count of live neighbors  
+      int num_alive_neighbors = 0; //keep count of live neighbors  
       //set direction
-      int left = (curr_col-1) % usize;
-      int right = (curr_col + 1) % usize;
+      int left = (curr_col-1) % u_size;
+      int right = (curr_col + 1) % u_size;
       int up = i+1;
       int down = i-1;
       
 //count number of alive neighbors
-        if (curr_row = 0) //top thread row - use top ghost row
+      if (curr_row == 0) //top thread row - use top ghost row
       { 
         num_alive_neighbors = my_rows[curr_row][left] + my_rows[curr_row][right] + top_ghost_row[curr_col] + my_rows[down][curr_col] +
           top_ghost_row[left] + top_ghost_row[right] + my_rows[down][left] + my_rows[down][right];         
       }
-      else if (curr_row = starting_row + rows_per_thread-1) //bottom thread row - use bottom ghost row
+      else if (curr_row == starting_row + rows_per_thread-1) //bottom thread row - use bottom ghost row
       {
         num_alive_neighbors = my_rows[curr_row][left] + my_rows[curr_row][right] + my_rows[up][curr_col] + bottom_ghost_row[curr_col] +
           my_rows[up][left] + my_rows[up][right]+ bottom_ghost_row[left] + bottom_ghost_row[right];
@@ -270,7 +277,8 @@ int** sim_tick(int starting_row)
       //else, randomly select alive or dead
       else
       {
-        if (GenVal(mpi_myrank*curr_row+curr_col) % 2)
+        //Genval gives a double from 0-1
+        if (GenVal(mpi_myrank*curr_row+curr_col) > 0.5)
         { 
           temp_cells[curr_col] = ALIVE; //if random number if even, it is alive
         }
@@ -295,7 +303,7 @@ int** sim_tick(int starting_row)
 void *run_simulation(void *void_pthread_id_ptr)
 {
     int *pthread_id_ptr = (int *)void_pthread_id_ptr;
-    int pthread_id = &pthread_id_ptr;
+    int pthread_id = *pthread_id_ptr;
    
     //play the game
     for(int t = 0; t < num_ticks; t++)
@@ -307,7 +315,7 @@ void *run_simulation(void *void_pthread_id_ptr)
           pthread_id0();
         }
         //If there are 0 or 1 pthreads
-        if ((num_pthreads == 0) | (num_pthreads == 1)
+        if ((num_pthreads == 0) | (num_pthreads == 1))
         {
             int** temp_table = sim_tick(0);
           
@@ -365,9 +373,9 @@ void pthread_id0()
     {
       //MPI_IRECV
       //receive top ghost row from rank 0
-      MPI_Irecv(&top_ghost_row, usize, MPI_INT, mpi_commsize-1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
+      MPI_Irecv(&top_ghost_row, u_size, MPI_INT, mpi_commsize-1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
       //receive bottom ghost row from last rank
-      MPI_Irecv(&bottom_ghost_row, usize, MPI_INT, mpi_myrank+1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request2);
+      MPI_Irecv(&bottom_ghost_row, u_size, MPI_INT, mpi_myrank+1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request2);
 
       //MPI_ISEND
       //send top row to last rank
@@ -385,9 +393,9 @@ void pthread_id0()
     {
       //MPI_IRECV
       //receive top ghost row from previous rank
-      MPI_Irecv(&top_ghost_row, usize, MPI_INT, mpi_myrank-1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
+      MPI_Irecv(&top_ghost_row, u_size, MPI_INT, mpi_myrank-1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
       //receive bottom ghost row from first rank
-      MPI_Irecv(&bottom_ghost_row, usize, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request2);
+      MPI_Irecv(&bottom_ghost_row, u_size, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request2);
 
       //MPI_ISEND
       //send top row to previous rank
@@ -405,9 +413,9 @@ void pthread_id0()
     {
       //MPI_IRECV
       //receive bottom ghost row from previous last rank
-      MPI_Irecv(&bottom_ghost_row, usize, MPI_INT, mpi_myrank-1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
+      MPI_Irecv(&bottom_ghost_row, u_size, MPI_INT, mpi_myrank-1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
       //receives top ghost row from next rank
-      MPI_Irecv(&top_ghost_row, usize, MPI_INT, mpi_myrank+1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
+      MPI_Irecv(&top_ghost_row, u_size, MPI_INT, mpi_myrank+1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
 
       //MPI_ISEND
       //send top row to previous rank
