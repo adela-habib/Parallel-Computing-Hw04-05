@@ -33,10 +33,6 @@
 
 int mpi_myrank; //rank id
 int mpi_commsize; //number of total ranks
-//MPI Variables
-MPI_Status status; 
-MPI_Request send_request, recv_request;
-MPI_Request recv_request2;
 //input arguments
 int num_pthreads; //number of pthreads
 double threshold; //threshold value
@@ -66,8 +62,6 @@ void pthread_id0(void); //function for pthread_id0
 
 int main(int argc, char *argv[])
 {
-//    int i = 0;
-// Example MPI startup and using CLCG4 RNG
     MPI_Init( &argc, &argv);
     MPI_Comm_size( MPI_COMM_WORLD, &mpi_commsize);
     MPI_Comm_rank( MPI_COMM_WORLD, &mpi_myrank);
@@ -97,7 +91,6 @@ int main(int argc, char *argv[])
     
 //determine number of rows for each rank and each thread
     rows_per_rank = u_size/mpi_commsize; //number of rows per rank
-    if (mpi_myrank == 0){ printf("\n rows_per_rank = %d\n", rows_per_rank); }
     
 //allocate space for rows and columns on each rank
     my_rows = (int **)calloc(rows_per_rank, sizeof(int*));
@@ -106,6 +99,10 @@ int main(int argc, char *argv[])
    {
             my_rows[i] = (int *)calloc(u_size, sizeof(int));
    }
+
+   //allocate space for ghost rows
+   top_ghost_row = (int *)malloc(sizeof(int)*u_size);
+   bottom_ghost_row = (int *)malloc(sizeof(int)*u_size);
     
 //Randomly initialize universe
     for (int i=0; i<rows_per_rank; i++)
@@ -127,8 +124,6 @@ int main(int argc, char *argv[])
     
 //Create Pthreads
     pthread_t p_threads[num_pthreads-1];
-    //pthread_t pthreads[num_pthreads];
-
     pthread_attr_t attr;
     pthread_attr_init (&attr);
   
@@ -137,11 +132,6 @@ int main(int argc, char *argv[])
     if (num_pthreads > 0)
     {
       rows_per_thread = rows_per_rank/num_pthreads; //number of rows per thread
-      if (mpi_myrank ==0){printf("rows_per_thread = %d\n", rows_per_thread); }
-
-      //allocate memory for ghost rows
-      top_ghost_row = (int *)calloc(u_size, sizeof(int));
-      bottom_ghost_row = (int *)calloc(u_size, sizeof(int));
       
       //Create barrier to sync ticks in pthreads
       pthread_barrier_init(&pbarrier, NULL, num_pthreads);
@@ -154,19 +144,18 @@ int main(int argc, char *argv[])
 
       //pthreads 1 to num_pthreads run simulation function
       for(int i=1; i < num_pthreads; i++)
-      { 
-         
+      {       
         //create pthreads
         pthread_create(&p_threads[i-1], &attr, run_simulation, (void *) &pthread_id);
 
-        pthread_id++;  
-        
+        pthread_id++;       
       }
 
       if (mpi_myrank ==0){printf("Done Making Pthreads.\n"); }
 
       //join threads to make sure all pthreads in rank are done
-      for(int i = 0; i < num_pthreads - 1; i++){
+      for(int i = 0; i < num_pthreads - 1; i++)
+      {
               pthread_join(p_threads[i], NULL);
       }
 
@@ -175,24 +164,22 @@ int main(int argc, char *argv[])
     else
     {
         rows_per_thread = rows_per_rank;
-        
-        //allocate memory for ghost rows
-        top_ghost_row = (int *)calloc(u_size, sizeof(int));
-        bottom_ghost_row = (int *)calloc(u_size, sizeof(int));
 
-	int arg = 0;
+    	int arg = 0;
         run_simulation(&arg);     
     }
       
-    //Synchronize ranks
-    MPI_Barrier(MPI_COMM_WORLD);  
-    
-//End time of program
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    //End time of program
     if (mpi_myrank == 0)
     {
         end_time = MPI_Wtime();
     }
 
+    //End MPI
+    MPI_Finalize(); 
+ 
 //Free allocated memory
     free(top_ghost_row);
     free(bottom_ghost_row);
@@ -202,9 +189,6 @@ int main(int argc, char *argv[])
     }
     free(my_rows);
     
-// END -Perform a barrier and then leave MPI
-    MPI_Barrier( MPI_COMM_WORLD );
-    MPI_Finalize();
     return 0;
 }
 
@@ -284,7 +268,7 @@ int** sim_tick(int starting_row)
             //else, randomly select alive or dead
             else
             {
-                if ( ( ( (int) GenVal(mpi_myrank*curr_row+curr_col) ) * 100) % 2)
+                if (GenVal(mpi_myrank*curr_row+curr_col) > 0.5 )
                 { 
                     temp_cells[curr_col] = ALIVE; //if random number if even, it is alive
                 }
@@ -315,13 +299,12 @@ void *run_simulation(void *void_pthread_id_ptr)
     for(int t = 0; t < num_ticks; t++)
     {                              
         //(i.) Exchange row data with different MPI ranks for the ghost rows (the rows shared between MPI ranks). You exchange this (ghost) row data from thread 0 of each MPI rank. 
-        //Be careful here on how to use mutexes so as to avoid deadlocks. Also note that this row exchange uses alive/dead status data from the previous tick.
-      if (mpi_myrank == 0){ printf("Reached before pthread_id0() function. \n\n"); }
-      
+        //Be careful here on how to use mutexes so as to avoid deadlocks. Also note that this row exchange uses alive/dead status data from the previous tick. 
       if (pthread_id == 0)
         {
             pthread_id0();
         }
+        MPI_Barrier(MPI_COMM_WORLD);
 	
 	if (mpi_myrank ==0){printf("Finished pthread_id0() function.\n\n"); }
 	
@@ -380,78 +363,70 @@ void *run_simulation(void *void_pthread_id_ptr)
     return NULL;
 }
 
+
 void pthread_id0()
 {
-    if(mpi_myrank == 0) //first rank
+  MPI_Status status; 
+  MPI_Request send_request, send_request2, recv_request, recv_request2;
+
+  if (mpi_myrank == 0) //first rank
     {
-        //MPI_IRECV
-        //receive top ghost row from rank 0
-        MPI_Irecv(&top_ghost_row, u_size, MPI_INT, mpi_commsize-1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
-        //receive bottom ghost row from last rank
-        MPI_Irecv(&bottom_ghost_row, u_size, MPI_INT, mpi_myrank+1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request2);
+      MPI_Irecv(top_ghost_row, u_size, MPI_INT, mpi_commsize-1, 
+        1, MPI_COMM_WORLD, &recv_request);
+      MPI_Irecv(bottom_ghost_row, u_size, MPI_INT, mpi_myrank+1,
+        2, MPI_COMM_WORLD, &recv_request2);
 
-	if (mpi_myrank ==0){printf("\t pthread_id0 print1\n"); }
-	
-        //MPI_ISEND
-        //send top row to last rank
-        MPI_Isend(&my_rows[0], u_size, MPI_INT, mpi_commsize-1, 1, MPI_COMM_WORLD, &send_request);
-        MPI_Wait(&send_request, &status);
+      //send top row to last rank
+      MPI_Isend(my_rows[0], u_size, MPI_INT, mpi_commsize-1,
+        2, MPI_COMM_WORLD, &send_request);
+      MPI_Wait(&send_request, &status);
+      //send last row to rank 1
+      MPI_Isend(my_rows[rows_per_rank-1], u_size, MPI_INT, mpi_myrank+1,
+        1, MPI_COMM_WORLD, &send_request2);
+      MPI_Wait(&send_request2, &status);
 
-	printf("my_rows[%d] = %d\n\n", rows_per_rank-1, my_rows[rows_per_rank-1][0]);
-        //send last row to rank 1
-        MPI_Isend(&my_rows[rows_per_rank-1], u_size, MPI_INT, mpi_myrank+1, 1, MPI_COMM_WORLD, &send_request);
-        MPI_Wait(&send_request, &status);
-
-        MPI_Wait(&recv_request, &status);
-        MPI_Wait(&recv_request2, &status);
-
-	printf("I am Rank 0, finished print1.\n");
+      //Receive Waits
+      MPI_Wait(&recv_request, &status);
+      MPI_Wait(&recv_request2, &status);
     }
-    else if (mpi_myrank == mpi_commsize-1) //last rank
+  else if (mpi_myrank == mpi_commsize-1) //last rank
     {
-      printf("I am Rank %d - Inside Else if.\n", mpi_myrank);
+      MPI_Irecv(top_ghost_row, u_size, MPI_INT, mpi_myrank-1,
+        1, MPI_COMM_WORLD, &recv_request);
+      MPI_Irecv(bottom_ghost_row, u_size, MPI_INT, 0,
+        2, MPI_COMM_WORLD, &recv_request2);
       
-        //MPI_IRECV
-        //receive top ghost row from previous rank
-        MPI_Irecv(&top_ghost_row, u_size, MPI_INT, mpi_myrank-1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
-        //receive bottom ghost row from first rank
-        MPI_Irecv(&bottom_ghost_row, u_size, MPI_INT, 0, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request2);
+      //send top row to previous rank
+      MPI_Isend(my_rows[0], u_size, MPI_INT, mpi_myrank-1,
+        2, MPI_COMM_WORLD, &send_request);
+      MPI_Wait(&send_request, &status);
+      //send last row to first rank
+      MPI_Isend(my_rows[rows_per_rank-1], u_size, MPI_INT, mpi_myrank-1,
+        1, MPI_COMM_WORLD, &send_request2);
+      MPI_Wait(&send_request2, &status);
 
-	printf("\t pthread_id0 print2\n"); 	
-	
-        //MPI_ISEND
-        //send top row to previous rank
-        MPI_Isend(&my_rows[0], u_size, MPI_INT, mpi_myrank-1, 1, MPI_COMM_WORLD, &send_request);
-        MPI_Wait(&send_request, &status);
-        //send bottom row to first rank
-        MPI_Isend(&my_rows[rows_per_rank-1], u_size, MPI_INT, 0, 1, MPI_COMM_WORLD, &send_request);
-        MPI_Wait(&send_request, &status);
-
-        MPI_Wait(&recv_request, &status);          
-        MPI_Wait(&recv_request2, &status);
+      //Receive Waits
+      MPI_Wait(&recv_request, &status);
+      MPI_Wait(&recv_request2, &status);
     }
-    else //middle ranks
-    {
-      printf("I am Rank %d - Inside Else.\n", mpi_myrank);
+  else //middle ranks
+    {    
+      MPI_Irecv(top_ghost_row, u_size, MPI_INT, mpi_myrank-1, 
+        1, MPI_COMM_WORLD, &recv_request);
+      MPI_Irecv(bottom_ghost_row, u_size, MPI_INT, mpi_myrank+1,
+        2, MPI_COMM_WORLD, &recv_request2);
       
-        //MPI_IRECV
-        //receive bottom ghost row from previous last rank
-        MPI_Irecv(&bottom_ghost_row, u_size, MPI_INT, mpi_myrank-1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
-        //receives top ghost row from next rank
-        MPI_Irecv(&top_ghost_row, u_size, MPI_INT, mpi_myrank+1, MPI_ANY_TAG, MPI_COMM_WORLD, &recv_request);
+      //send top row to previous rank
+      MPI_Isend(my_rows[0], u_size, MPI_INT, mpi_myrank-1,
+        2, MPI_COMM_WORLD, &send_request);
+      MPI_Wait(&send_request, &status);
+      //send bottom row to next rank
+      MPI_Isend(my_rows[rows_per_rank-1], u_size, MPI_INT, mpi_myrank+1,
+        1, MPI_COMM_WORLD, &send_request2);
+      MPI_Wait(&send_request2, &status);
 
-	printf("\t pthread_id0 print3\n"); 
-	
-        //MPI_ISEND
-        //send top row to previous rank
-        MPI_Isend(&my_rows[0], u_size, MPI_INT, mpi_myrank-1, 1, MPI_COMM_WORLD, &send_request);
-        MPI_Wait(&send_request, &status);
-        //send bottom row to next rank
-        MPI_Isend(&my_rows[rows_per_rank-1], u_size, MPI_INT, mpi_myrank+1, 1, MPI_COMM_WORLD, &send_request);
-        MPI_Wait(&send_request, &status); 
-
-        MPI_Wait(&recv_request, &status);          
-        MPI_Wait(&recv_request2, &status);
+      //Receive Waits
+      MPI_Wait(&recv_request, &status);
+      MPI_Wait(&recv_request2, &status);
     }
 }
-
