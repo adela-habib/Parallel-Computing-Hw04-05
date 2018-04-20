@@ -67,8 +67,6 @@ void pthread_id0(void); //function for pthread_id0
 int main(int argc, char *argv[])
 {
 //    int i = 0;
-    int mpi_myrank;
-    int mpi_commsize;
 // Example MPI startup and using CLCG4 RNG
     MPI_Init( &argc, &argv);
     MPI_Comm_size( MPI_COMM_WORLD, &mpi_commsize);
