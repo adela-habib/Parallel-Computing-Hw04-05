@@ -25,7 +25,7 @@
 #define DEAD  0
 
 #define u_size 1024 //world size 1024x1024
-#define num_ticks 128 //128 ticks --> CHANGE BACK
+#define num_ticks 128 //128 ticks
 
 /***************************************************************************/
 /* Global Vars *************************************************************/

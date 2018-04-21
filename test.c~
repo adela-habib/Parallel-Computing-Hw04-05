@@ -1,0 +1,192 @@
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include<errno.h>
+#include<math.h>
+#include"clcg4.h"
+#include<mpi.h>
+#include<pthread.h>
+
+/***************************************************************************/
+/* Defines *****************************************************************/
+/***************************************************************************/
+#define ALIVE 1
+#define DEAD  0
+
+#define u_size 256
+#define num_ticks 5 
+
+/***************************************************************************/
+/* Global Vars *************************************************************/
+/***************************************************************************/
+
+int mpi_myrank; //rank id
+int mpi_commsize; //number of total ranks
+//input arguments
+int num_pthreads; //number of pthreads
+double threshold; //threshold value
+//Program Variables
+int rows_per_rank; //number of rows per rank
+int rows_per_thread;
+int **my_rows; //allocated number of rows per rank
+
+/***************************************************************************/
+/* Function Decs ***********************************************************/
+/***************************************************************************/
+
+
+
+/***************************************************************************/
+/* Function: Main **********************************************************/
+/***************************************************************************/
+
+int main(int argc, char *argv[])
+{
+  MPI_Init(&argc, &argv);
+  MPI_Comm_size( MPI_COMM_WORLD, &mpi_commsize);
+  MPI_Comm_rank( MPI_COMM_WORLD, &mpi_myrank);
+
+  InitDefault();
+
+  sscanf(argv[1], "%d", &num_pthreads);
+  sscanf(argv[2], "%lf", &threshold);
+
+  rows_per_rank = u_size / mpi_commsize;
+
+  //allocate space for rows and columns on each rank
+  my_rows = (int **)calloc(rows_per_rank, sizeof(int*));
+  for(int i=0; i < rows_per_rank; i++)
+    {
+      my_rows[i] = (int *)calloc(u_size, sizeof(int));
+    }
+
+  //Randomly initialize universe
+  for (int i=0; i < rows_per_rank; i++)
+    {
+      for(int j=0; j < u_size; j++)
+	{
+	  if (GenVal(mpi_myrank*rows_per_rank+i) > threshold)
+	    {
+	      my_rows[i][j] = ALIVE;
+	    }
+	  else
+	    {
+	      my_rows[i][j] = DEAD;
+	    }
+	}
+    }
+
+  MPI_Barrier( MPI_COMM_WORLD );
+
+  //OUTPUT STUFF
+  int s = 16;
+  int rows_per_output = rows_per_rank/s;
+  int output_size = u_size/s;
+  int **output_rows;
+  MPI_File fh;
+  MPI_Status status;
+  char *output_char;
+  int char_size = rows_per_output*(4*output_size+1);
+
+  //allocate space for char output array
+  output_char = (char *)calloc(char_size, sizeof(char *));
+
+  //allocate space for rows & columns of outputted values
+  output_rows = (int **)calloc(rows_per_output, sizeof(int*));
+  for(int i=0; i<rows_per_output; i++)
+    {
+      output_rows[i] = (int *)calloc(output_size, sizeof(int));
+    }
+  
+  for(int i=0; i < rows_per_output; i++)
+    {
+      for(int j=0; j < output_size; j++)
+	{
+	  int value = 0;
+	  
+	  for(int k=0; k<s; k++)
+	    {
+	      for(int l=0; l<s; l++)
+		{
+		  value += my_rows[i*s+k][j*s+l];
+		}
+	    }
+	  output_rows[i][j] = value;
+	}
+    }
+
+  //CONVERTING TO SINGLE CHAR ARRAY
+  int ind = 0;
+  int x=0;
+  int y=0;
+  int z=0;
+  for(int i=0; i<rows_per_output; i++)
+    {
+      for(int j=0; j<output_size; j++)
+	{
+	  if (output_rows[i][j]<10)
+	    {
+	      output_char[ind] = '0'+ output_rows[i][j];
+	      ind++;
+	    }
+	  else if (output_rows[i][j]<100)
+	    {
+	      z = output_rows[i][j]%10;
+	      y = (output_rows[i][j]-z)/10;
+	      output_char[ind] = '0'+y;
+	      ind++;
+	      output_char[ind] = '0'+z;
+	      ind++;
+	    }
+	  else
+	    {
+	      z = output_rows[i][j]%10;
+	      y = ((output_rows[i][j]-z)/10)%10;
+	      x = (output_rows[i][j]-z-(y*10))/100;
+	      output_char[ind] = '0'+x;
+	      ind++;
+	      output_char[ind] = '0'+y;
+	      ind++;
+	      output_char[ind] = '0'+z;
+	      ind++;
+	    }
+	  output_char[ind] = '\t';
+	  ind++;
+	}
+      output_char[ind] = '\n';
+      ind++;
+    }  
+
+  int offset = mpi_myrank*char_size;
+  char *filename = "output.csv";
+  
+  //MPI file operations
+  MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_CREATE|MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
+  MPI_File_write_at(fh, offset, output_char, char_size, MPI_CHAR, &status);
+  MPI_File_close(&fh);
+
+  if(mpi_myrank==0)
+  {
+    printf("\nFinished.\n\n");
+  }
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  MPI_Finalize();
+  
+  //Free allocated memory
+  for(int i=0; i < rows_per_rank; i++)
+    {
+      free(my_rows[i]);
+    }
+  free(my_rows);
+  for(int i=0; i < rows_per_output; i++)
+    {
+      free(output_rows[i]);
+    }
+  free(output_rows);
+  free(output_char);
+
+  //End
+  
+  return 0;
+}
