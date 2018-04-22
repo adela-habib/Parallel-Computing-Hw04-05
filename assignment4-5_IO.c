@@ -172,11 +172,6 @@ int main(int argc, char *argv[])
   //printf("Before join\n");
   MPI_Barrier(MPI_COMM_WORLD);
 
-  //End time of program
-  if (mpi_myrank == 0)
-    {
-      end_time = MPI_Wtime();
-    }
 
   //Output Variables
   int rows_per_output = rows_per_rank/s;
@@ -214,7 +209,6 @@ int main(int argc, char *argv[])
     	}
     }
 
-  /*
   //Convert to Single Char Array
   int ind = 0;
   int x = 0;
@@ -274,7 +268,12 @@ int main(int argc, char *argv[])
   MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_CREATE|MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
   MPI_File_write_at(fh, offset, output_char, char_size, MPI_CHAR, &status);
   MPI_File_close(&fh);
-  */
+
+  //End time of program
+  if (mpi_myrank == 0)
+  {
+    end_time = MPI_Wtime();
+  }
   
   MPI_Barrier(MPI_COMM_WORLD);
   if(mpi_myrank == 0)
@@ -295,15 +294,12 @@ int main(int argc, char *argv[])
     }
   free(my_rows);
   free(ghost_rows);
-  
-  /*
   for(int i=0; i<rows_per_output; i++)
     {
       free(output_rows[i]);
     }
   free(output_rows);
   free(output_char);
-  */
     
   return 0;
 }
