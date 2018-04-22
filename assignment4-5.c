@@ -26,7 +26,7 @@
 
 #define u_size 16384 //world size
 #define num_ticks 128 //128 ticks
-#define s 4 //calculate square-size (16x16)
+#define s 16 //calculate square-size (16x16)
 
 /***************************************************************************/
 /* Global Vars *************************************************************/
