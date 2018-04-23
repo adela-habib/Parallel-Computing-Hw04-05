@@ -173,141 +173,54 @@ int main(int argc, char *argv[])
   MPI_Barrier(MPI_COMM_WORLD);
 
 
-  //Output Variables
-  int rows_per_output = rows_per_rank/s;
-  int output_size = u_size/s;
-  int **output_rows;
-  MPI_File fh;
-  MPI_Status status;
-  char *output_char;
-  int char_size = rows_per_output*(4*output_size+1);
+  int run_io = 1;
+  if(run_io == 1){
 
-  //Allocate space for char output array
-  output_char = (char *)calloc(char_size, sizeof(char *));
+    //Total Universe Output Variables
+    MPI_File file2;
+    MPI_Status status2;
+    char *universe_char;
+    int uout_size = rows_per_rank*(2*u_size+1);
 
-  //Allocate space for rows & columns of outputted values
-  output_rows = (int **)calloc(rows_per_output, sizeof(int*));
-  for(int i=0; i<rows_per_output; i++)
+    //Allocate space for the outputted universe array
+    universe_char = (char *)calloc(uout_size, sizeof(char *));
+
+    //Convert to single char array
+    int ind2 = 0;
+    for (int i=0; i<rows_per_rank; i++)
+      {
+        for (int j=0; j<u_size; j++)
     {
-      output_rows[i] = (int *)calloc(output_size, sizeof(int));
-    }
-
-  //Calculate (16 x 16) values
-  for(int i=0; i<rows_per_output; i++)
-    {
-      for(int j=0; j<output_size; j++)
-    	{
-	  int value = 0;
-	  for(int k=0; k<s; k++)
-	    {
-	      for(int l=0; l<s; l++)
-		{
-		  value += my_rows[i*s+k][j*s+l];
-		}
-	    }
-	  output_rows[i][j] = value;
-    	}
-    }
-
-  //Convert to Single Char Array
-  int ind = 0;
-  int x = 0;
-  int y = 0;
-  int z = 0;
-
-  for(int i=0; i<rows_per_output; i++)
-    {
-      for(int j=0; j<output_size; j++)
-    	{
-	  if (output_rows[i][j]<10)
-	    {
-	      output_char[ind] = '0';
-	      ind++;
-	      output_char[ind] = '0';
-	      ind++;
-	      output_char[ind] = '0' + output_rows[i][j];
-	      ind++;
-	    }
-	  else if (output_rows[i][j]<100)
-	    {
-	      z = output_rows[i][j]%10;
-	      y = (output_rows[i][j]-z)/10;
-	      output_char[ind] = '0';
-	      ind++;
-	      output_char[ind] = '0' + y;
-	      ind++;
-	      output_char[ind] = '0' + z;
-	      ind++;
-	    }
-	  else
-	    {
-	      z = output_rows[i][j]%10;
-	      y = ((output_rows[i][j]-z)/10)%10;
-	      x = (output_rows[i][j]-z-(y*10))/100;
-	      output_char[ind] = '0' + x;
-	      ind++;
-	      output_char[ind] = '0' + y;
-	      ind++;
-	      output_char[ind] = '0' + z;
-	      ind++;
-	    }
-	  output_char[ind] = ',';
-	  ind++;
-	}
-      output_char[ind] = '\n';
-      ind++;
-    }
-
-  //MPI File operations
-  int offset = mpi_myrank*char_size;
-  char *filename = "output.csv";
-  
-  MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_CREATE|MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
-  MPI_File_write_at(fh, offset, output_char, char_size, MPI_CHAR, &status);
-  MPI_File_close(&fh);
-
-  //Second Output Variables
-  MPI_File file2;
-  MPI_Status status2;
-  char *universe_char;
-  int uout_size = rows_per_rank*(2*u_size+1);
-
-  //Allocate space for the outputted universe array
-  universe_char = (char *)calloc(uout_size, sizeof(char *));
-
-  //Convert to single char array
-  int ind2 = 0;
-  for (int i=0; i<rows_per_rank; i++)
-    {
-      for (int j=0; j<u_size; j++)
-	{
-	  if (my_rows[i][j] == 0)
-	    {
-	      universe_char[ind2] = '0';
-	      ind2++;
-	    }
-	  else
-	    {
-	      universe_char[ind2] = '1';
-	      ind2++;
-	    }
-	  universe_char[ind2] = ',';
-	  ind2++;
-	}
-      universe_char[ind2] = '\n';
+      if (my_rows[i][j] == 0)
+        {
+          universe_char[ind2] = '0';
+          ind2++;
+        }
+      else
+        {
+          universe_char[ind2] = '1';
+          ind2++;
+        }
+      universe_char[ind2] = ',';
       ind2++;
     }
+        universe_char[ind2] = '\n';
+        ind2++;
+      }
 
-  //MPI Second File Operations
-  int offset2 = mpi_myrank*uout_size;
-  char *filename2 = "Universe.csv";
+    //MPI Second File Operations
+    int offset2 = mpi_myrank*uout_size;
+    char *filename2 = "Universe.csv";
 
-  MPI_File_open(MPI_COMM_WORLD, filename2, MPI_MODE_CREATE|MPI_MODE_WRONLY, MPI_INFO_NULL, &file2);
-  MPI_File_write_at(file2, offset2, universe_char, uout_size, MPI_CHAR, &status2);
-  MPI_File_close(&file2);
+    MPI_File_open(MPI_COMM_WORLD, filename2, MPI_MODE_CREATE|MPI_MODE_WRONLY, MPI_INFO_NULL, &file2);
+    MPI_File_write_at(file2, offset2, universe_char, uout_size, MPI_CHAR, &status2);
+    MPI_File_close(&file2);
 
-  //Free Allocated Memory
-  free(universe_char);
+    //Free Allocated Memory
+    free(universe_char);
+  }
+
+  
   
 
   //End time of program
@@ -321,6 +234,113 @@ int main(int argc, char *argv[])
     {
       printf("\nFinished. Run Time: %f\n\n", end_time - start_time);
     }
+
+
+  int run_heatmap = 1;
+  if(run_heatmap == 1){
+    //Output Variables
+    int rows_per_output = rows_per_rank/s;
+    int output_size = u_size/s;
+    int **output_rows;
+    MPI_File fh;
+    MPI_Status status;
+    char *output_char;
+    int char_size = rows_per_output*(4*output_size+1);
+
+    //Allocate space for char output array
+    output_char = (char *)calloc(char_size, sizeof(char *));
+
+    //Allocate space for rows & columns of outputted values
+    output_rows = (int **)calloc(rows_per_output, sizeof(int*));
+    for(int i=0; i<rows_per_output; i++)
+      {
+        output_rows[i] = (int *)calloc(output_size, sizeof(int));
+      }
+
+    //Calculate (16 x 16) values
+    for(int i=0; i<rows_per_output; i++)
+      {
+        for(int j=0; j<output_size; j++)
+      	{
+  	  int value = 0;
+  	  for(int k=0; k<s; k++)
+  	    {
+  	      for(int l=0; l<s; l++)
+  		{
+  		  value += my_rows[i*s+k][j*s+l];
+  		}
+  	    }
+  	  output_rows[i][j] = value;
+      	}
+      }
+
+    //Convert to Single Char Array
+    int ind = 0;
+    int x = 0;
+    int y = 0;
+    int z = 0;
+
+    for(int i=0; i<rows_per_output; i++)
+      {
+        for(int j=0; j<output_size; j++)
+      	{
+  	  if (output_rows[i][j]<10)
+  	    {
+  	      output_char[ind] = '0';
+  	      ind++;
+  	      output_char[ind] = '0';
+  	      ind++;
+  	      output_char[ind] = '0' + output_rows[i][j];
+  	      ind++;
+  	    }
+  	  else if (output_rows[i][j]<100)
+  	    {
+  	      z = output_rows[i][j]%10;
+  	      y = (output_rows[i][j]-z)/10;
+  	      output_char[ind] = '0';
+  	      ind++;
+  	      output_char[ind] = '0' + y;
+  	      ind++;
+  	      output_char[ind] = '0' + z;
+  	      ind++;
+  	    }
+  	  else
+  	    {
+  	      z = output_rows[i][j]%10;
+  	      y = ((output_rows[i][j]-z)/10)%10;
+  	      x = (output_rows[i][j]-z-(y*10))/100;
+  	      output_char[ind] = '0' + x;
+  	      ind++;
+  	      output_char[ind] = '0' + y;
+  	      ind++;
+  	      output_char[ind] = '0' + z;
+  	      ind++;
+  	    }
+  	  output_char[ind] = ',';
+  	  ind++;
+  	}
+        output_char[ind] = '\n';
+        ind++;
+      }
+
+    //MPI File operations
+    int offset = mpi_myrank*char_size;
+    char *filename = "output.csv";
+    
+    MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_CREATE|MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
+    MPI_File_write_at(fh, offset, output_char, char_size, MPI_CHAR, &status);
+    MPI_File_close(&fh);
+
+    for(int i=0; i<rows_per_output; i++)
+    {
+      free(output_rows[i]);
+    }
+    free(output_rows);
+    free(output_char);  
+
+  }
+
+  
   
   //End MPI
   MPI_Finalize(); 
@@ -335,12 +355,8 @@ int main(int argc, char *argv[])
     }
   free(my_rows);
   free(ghost_rows);
-  for(int i=0; i<rows_per_output; i++)
-    {
-      free(output_rows[i]);
-    }
-  free(output_rows);
-  free(output_char);
+
+  
     
   return 0;
 }
