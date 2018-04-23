@@ -221,11 +221,10 @@ int main(int argc, char *argv[])
     	{
 	  if (output_rows[i][j]<10)
 	    {
-        output_char[ind] = '0';
-        ind++;
-        output_char[ind] = '0';
-        ind++;
-
+	      output_char[ind] = '0';
+	      ind++;
+	      output_char[ind] = '0';
+	      ind++;
 	      output_char[ind] = '0' + output_rows[i][j];
 	      ind++;
 	    }
@@ -233,11 +232,9 @@ int main(int argc, char *argv[])
 	    {
 	      z = output_rows[i][j]%10;
 	      y = (output_rows[i][j]-z)/10;
-	      
-        output_char[ind] = '0';
-        ind++;
-
-        output_char[ind] = '0' + y;
+	      output_char[ind] = '0';
+	      ind++;
+	      output_char[ind] = '0' + y;
 	      ind++;
 	      output_char[ind] = '0' + z;
 	      ind++;
@@ -268,6 +265,50 @@ int main(int argc, char *argv[])
   MPI_File_open(MPI_COMM_WORLD, filename, MPI_MODE_CREATE|MPI_MODE_WRONLY, MPI_INFO_NULL, &fh);
   MPI_File_write_at(fh, offset, output_char, char_size, MPI_CHAR, &status);
   MPI_File_close(&fh);
+
+  //Second Output Variables
+  MPI_File file2;
+  MPI_Status status2;
+  char *universe_char;
+  int uout_size = rows_per_rank*(2*u_size+1);
+
+  //Allocate space for the outputted universe array
+  universe_char = (char *)calloc(uout_size, sizeof(char *));
+
+  //Convert to single char array
+  int ind2 = 0;
+  for (int i=0; i<rows_per_rank; i++)
+    {
+      for (int j=0; j<u_size; j++)
+	{
+	  if (my_rows[i][j] == 0)
+	    {
+	      universe_char[ind2] = '0';
+	      ind2++;
+	    }
+	  else
+	    {
+	      universe_char[ind2] = '1';
+	      ind2++;
+	    }
+	  universe_char[ind2] = ',';
+	  ind2++;
+	}
+      universe_char[ind2] = '\n';
+      ind2++;
+    }
+
+  //MPI Second File Operations
+  int offset2 = mpi_myrank*uout_size;
+  char *filename2 = "Universe.csv";
+
+  MPI_File_open(MPI_COMM_WORLD, filename2, MPI_MODE_CREATE|MPI_MODE_WRONLY, MPI_INFO_NULL, &file2);
+  MPI_File_write_at(file2, offset2, universe_char, uout_size, MPI_CHAR, &status2);
+  MPI_File_close(&file2);
+
+  //Free Allocated Memory
+  free(universe_char);
+  
 
   //End time of program
   if (mpi_myrank == 0)
@@ -402,7 +443,7 @@ void sim_tick(int starting_row)
 	    }
 
 	  //if random value is greater than threshold - play the game
-	  if (GenVal(mpi_myrank+rows_per_rank*i) > threshold)
+	  if (GenVal(mpi_myrank*rows_per_rank+i) > threshold)
 	    {
 	      //1- Any live cell with fewer than two live neighbors dies, as if caused by under-population.
 	      if (num_alive_neighbors < 2)
@@ -431,7 +472,7 @@ void sim_tick(int starting_row)
 	  //else, randomly select alive or dead
 	  else
 	    {
-	      if (GenVal(mpi_myrank+rows_per_rank*i) > 0.5 )
+	      if (GenVal(mpi_myrank*rows_per_rank+i) > 0.5 )
 		{ 
 		  ghost_rows[i][curr_col] = ALIVE;
 		}

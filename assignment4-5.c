@@ -178,6 +178,7 @@ int main(int argc, char *argv[])
       end_time = MPI_Wtime();
     }
 
+  /*
   //Output Variables
   int rows_per_output = rows_per_rank/s;
   int output_size = u_size/s;
@@ -214,7 +215,6 @@ int main(int argc, char *argv[])
     	}
     }
 
-  /*
   //Convert to Single Char Array
   int ind = 0;
   int x = 0;
