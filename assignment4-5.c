@@ -71,8 +71,8 @@ int main(int argc, char *argv[])
   // Note, used the mpi_myrank to select which RNG stream to use.
   // You must replace mpi_myrank with the right row being used.
   // This just show you how to call the RNG.    
-  printf("Rank %d of %d has been started and a first Random Value of %lf\n", 
-	 mpi_myrank, mpi_commsize, GenVal(mpi_myrank));
+  // printf("Rank %d of %d has been started and a first Random Value of %lf\n", 
+	 // mpi_myrank, mpi_commsize, GenVal(mpi_myrank));
   MPI_Barrier( MPI_COMM_WORLD );
     
   //Get number of pthreads and threshold value
@@ -111,7 +111,7 @@ int main(int argc, char *argv[])
     {
       for (int j=0; j < u_size; j++)
         {
-	  if (GenVal(mpi_myrank*rows_per_rank+i) > threshold)
+	  if (GenVal(mpi_myrank*rows_per_rank+i) > 0.5)
             {
 	      my_rows[i][j] = ALIVE;
             }
