@@ -4,14 +4,14 @@ import numpy as np
 
 
 
-arr = np.zeros((1024,1024))
+arr = np.zeros((64,64))
 
 
 line_index = 0
 
-for line in open("0.75HM.csv"):
+for line in open("0.25HMtest.csv"):
 
-	if line_index > 1023:
+	if line_index > 63:
 		break
 
 	nums = line.split(",")
