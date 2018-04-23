@@ -406,7 +406,7 @@ void sim_tick(int starting_row)
 	    }
 
 	  //if random value is greater than threshold - play the game
-	  if (GenVal(mpi_myrank+rows_per_rank*i) > threshold)
+	  if (GenVal(mpi_myrank*rows_per_rank+i) > threshold)
 	    {
 	      //1- Any live cell with fewer than two live neighbors dies, as if caused by under-population.
 	      if (num_alive_neighbors < 2)
@@ -435,7 +435,7 @@ void sim_tick(int starting_row)
 	  //else, randomly select alive or dead
 	  else
 	    {
-	      if (GenVal(mpi_myrank+rows_per_rank*i) > 0.5 )
+	      if (GenVal(mpi_myrank*rows_per_rank+i) > 0.5 )
 		{ 
 		  ghost_rows[i][curr_col] = ALIVE;
 		}
