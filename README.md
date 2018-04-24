@@ -1,5 +1,5 @@
 # Hw04-05
-Genevieve Grivas and Adela Habib
+Genevieve Grivas, Adela Habib and Brandon Thorne 
 
 4/6/2018
 Gen: added (all) our names!
