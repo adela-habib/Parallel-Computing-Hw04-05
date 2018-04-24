@@ -19,7 +19,6 @@ plt.ylabel("Execution time [s]")
 plt.xticks([6,7,8,9,10,11,12,13,14])
 
 plt.figure(1)
-time = np.loadtxt("Time.txt", delimiter =', ')
 c = ["red", "orange", "green", "blue"]
 for i in range(4):
 	x = []
@@ -36,8 +35,6 @@ plt.ylabel("execution time [s]")
 plt.xticks([7,8,9,10,11,12,13,14])
 
 plt.figure(2)
-c = ["red", "orange", "green", "blue"]
-
 for i in range(4):
         x = []
         y = []
@@ -54,5 +51,5 @@ plt.ylabel("relative speedUp")
 plt.xticks([9,10,11,12,13,14])
 
 plt.show()
-exit(0)
+
 
